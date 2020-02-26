@@ -26,7 +26,6 @@
 
 <script type="text/javascript">
     var stompClient = null;
-
     function setConnected(connected) {
         document.getElementById('connect').disabled = connected;
         document.getElementById('disconnect').disabled = !connected;
@@ -41,6 +40,7 @@
         stompClient.connect({}, function(frame) {
             setConnected(true);
             console.log('Connected: ' + frame);
+            console.log("连接成功了")
             // 客户端订阅消息的目的地址：此值WebsocketController中被@SendTo("/topic/getResponse")注解的里配置的值
             stompClient.subscribe('/user/topic/getResponse', function(respnose){
                 showResponse(JSON.parse(respnose.body).responseMessage);
