@@ -1,5 +1,7 @@
 package com.example.demo.config;
 
+import com.example.demo.interceptor.MyChannelInterceptorAdapter;
+import com.example.demo.interceptor.MyHandShakeInterceptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
@@ -16,6 +18,10 @@ public class WebSocketConfig extends AbstractWebSocketMessageBrokerConfigurer {
     private WebSocketDecoratorFactory webSocketDecoratorFactory;
     @Autowired
     private PrincipalHandshakeHandler principalHandshakeHandler;
+    @Autowired
+    private MyHandShakeInterceptor myHandShakeInterceptor;
+    @Autowired
+    private MyChannelInterceptorAdapter myChannelInterceptorAdapter;
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
@@ -25,6 +31,7 @@ public class WebSocketConfig extends AbstractWebSocketMessageBrokerConfigurer {
         registry.addEndpoint("/myUrl")
                 .setAllowedOrigins("*")
                 .setHandshakeHandler(principalHandshakeHandler)
+                .addInterceptors(myHandShakeInterceptor)
                 .withSockJS();
     }
 

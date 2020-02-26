@@ -10,7 +10,7 @@ import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.ChannelInterceptorAdapter;
 import org.springframework.stereotype.Component;
 
-//@Component
+@Component
 @Slf4j
 public class MyChannelInterceptorAdapter extends ChannelInterceptorAdapter {
 
