@@ -1,43 +1,87 @@
 package com.example.demo.controller;
 
-import com.example.demo.pojo.RequestMessage;
-import com.example.demo.pojo.ResponseMessage;
+import com.example.demo.config.SocketManager;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.SendTo;
-import org.springframework.stereotype.Controller;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.socket.WebSocketSession;
 
-import javax.servlet.http.HttpServletRequest;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.Map;
 
-@Controller
+@RestController
 @Slf4j
 public class WebsocketController {
 
-    private AtomicInteger count = new AtomicInteger(0);
+    @Autowired
+    private SimpMessagingTemplate template;
 
     /**
-     * @MessageMapping 指定要接收消息的地址， 类似@RequestMapping. 除了注解到方法上，也可以注解到类上
-     * @SendTo 默认消息将被发送到与传入消息相同的目的地
-     * @param requestMessage 返回的消息
-     * @return
+     * 服务器指定用户进行推送,需要前端开通 var socket = new SockJS(host+'/myUrl' + '?token=1234');
      */
-    @MessageMapping("/receive")
-    @SendTo("/topic/getResponse")
-    public ResponseMessage broadcast(RequestMessage requestMessage){
-        log.info("收到消息:  {}", requestMessage);
-        ResponseMessage message  = new ResponseMessage();
-        message.setResponseMessage("WebsockeController 收到了 {" + count.incrementAndGet() + "} 条消息");
-        return  message;
+    @RequestMapping("/sendUser")
+    public void sendUser(String token) {
+        log.info("token = {} ,对其发送您好", token);
+        WebSocketSession webSocketSession = SocketManager.get(token);
+        if (webSocketSession != null) {
+            /**
+             * 主要防止broken pipe
+             */
+            template.convertAndSendToUser(token, "/queue/sendUser", "您好");
+        }
+
     }
 
-    @RequestMapping(value = "/broadcast/index")
-    public String brodcastIndex(HttpServletRequest request){
-        log.info(request.getRemoteHost());
-        return "websocket/simple/ws-broadcast";
+    /**
+     * 广播，服务器主动推给连接的客户端
+     */
+    @RequestMapping("/sendTopic")
+    public void sendTopic(String message) {
+        template.convertAndSend("/topic/sendTopic", message);
 
+    }
+
+    /**
+     * 客户端发消息，服务端接收
+     *
+     * @param message
+     */
+    // 相当于RequestMapping
+    @MessageMapping("/sendServer")
+    public void sendServer(String message) {
+        log.info("message:{}", message);
+    }
+
+    /**
+     * 客户端发消息，大家都接收，相当于直播说话
+     *
+     * @param message
+     * @return
+     */
+    @MessageMapping("/sendAllUser")
+    @SendTo("/topic/sendTopic")
+    public String sendAllUser(String message) {
+        // 也可以采用template方式
+        return message;
+    }
+
+    /**
+     * 点对点用户聊天，这边需要注意，由于前端传过来json数据，所以使用@RequestBody
+     * 这边需要前端开通var socket = new SockJS(host+'/myUrl' + '?token=4567');   token为指定name
+     * @param map
+     */
+    @MessageMapping("/sendMyUser")
+    public void sendMyUser(@RequestBody Map<String, String> map) {
+        log.info("map = {}", map);
+        WebSocketSession webSocketSession = SocketManager.get(map.get("name"));
+        if (webSocketSession != null) {
+            log.info("sessionId = {}", webSocketSession.getId());
+            template.convertAndSendToUser(map.get("name"), "/queue/sendUser", map.get("message"));
+        }
     }
 
 
