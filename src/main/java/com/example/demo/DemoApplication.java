@@ -11,7 +11,11 @@ public class DemoApplication {
 
 	public static void main(String[] args) {
 		SpringApplication.run(DemoApplication.class, args);
-		new NettyServer(8081).start();
+		try {
+			new NettyServer(8081).start();
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
 	}
 
 }
