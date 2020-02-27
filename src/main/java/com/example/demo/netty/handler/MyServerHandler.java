@@ -31,6 +31,7 @@ public class MyServerHandler extends SimpleChannelInboundHandler<BaseRequestProt
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
         super.channelActive(ctx);
         log.info("{}通道已激活", ctx.channel().localAddress().toString());
+        ctx.fireChannelActive();
     }
 
     /*

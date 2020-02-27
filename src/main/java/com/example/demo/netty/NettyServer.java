@@ -1,6 +1,7 @@
 package com.example.demo.netty;
 
 import com.example.demo.netty.handler.MyServerHandler;
+import com.example.demo.netty.handler.ServerIdleStateTrigger;
 import com.example.demo.netty.message.BaseRequestProto;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.ChannelFuture;
@@ -10,28 +11,28 @@ import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
-import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
-import io.netty.handler.codec.bytes.ByteArrayEncoder;
 import io.netty.handler.codec.protobuf.ProtobufDecoder;
 import io.netty.handler.codec.protobuf.ProtobufEncoder;
 import io.netty.handler.codec.protobuf.ProtobufVarint32FrameDecoder;
 import io.netty.handler.codec.protobuf.ProtobufVarint32LengthFieldPrepender;
-import io.netty.handler.codec.string.StringEncoder;
+import io.netty.handler.timeout.IdleStateHandler;
 import lombok.extern.slf4j.Slf4j;
-
-import java.nio.charset.Charset;
+import org.springframework.context.annotation.Scope;
+import org.springframework.stereotype.Component;
 
 /**
  * Netty启动类
  */
 
 @Slf4j
+@Component(value = "NettyServer")
+@Scope(scopeName = "singleton")
 public class NettyServer {
-    private final int port;
+    private final int port = 8081;
 
-    public NettyServer(int port) {
-        this.port = port;
-    }
+//    public NettyServer(int port) {
+//        this.port = port;
+//    }
 
     public void start() throws Exception {
         EventLoopGroup bossGroup = new NioEventLoopGroup();
@@ -51,6 +52,10 @@ public class NettyServer {
                         protected void initChannel(SocketChannel ch) throws Exception {
                             log.info("客户端连接：{}:{}", ch.localAddress().getHostName(), ch.localAddress().getPort());
 //                            ch.pipeline().addLast(new StringEncoder(Charset.forName("UTF-8")));
+                            // 心跳包
+                            ch.pipeline().addLast(new IdleStateHandler(5, 0, 0));
+                            // 心跳检测处理
+                            ch.pipeline().addLast(new ServerIdleStateTrigger());
                             // 防止protobuf粘包半包问题；
                             ch.pipeline().addLast(new ProtobufVarint32FrameDecoder());
                             // 定义protobuf解码器
