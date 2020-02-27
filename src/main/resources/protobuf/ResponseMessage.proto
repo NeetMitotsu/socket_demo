@@ -1,0 +1,11 @@
+syntax = "proto2";
+
+package protocol;
+
+option java_package = "com.example.demo";
+option java_outer_classname = "BaseResponseProto";
+
+message ResponseProtocol {
+    required string resMsg = 1;
+    required int32 responseId = 2;
+}

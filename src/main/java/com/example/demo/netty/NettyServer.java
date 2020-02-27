@@ -1,6 +1,7 @@
 package com.example.demo.netty;
 
 import com.example.demo.netty.handler.MyServerHandler;
+import com.example.demo.netty.message.BaseRequestProto;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelInitializer;
@@ -9,7 +10,12 @@ import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
+import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import io.netty.handler.codec.bytes.ByteArrayEncoder;
+import io.netty.handler.codec.protobuf.ProtobufDecoder;
+import io.netty.handler.codec.protobuf.ProtobufEncoder;
+import io.netty.handler.codec.protobuf.ProtobufVarint32FrameDecoder;
+import io.netty.handler.codec.protobuf.ProtobufVarint32LengthFieldPrepender;
 import io.netty.handler.codec.string.StringEncoder;
 import lombok.extern.slf4j.Slf4j;
 
@@ -44,10 +50,18 @@ public class NettyServer {
                         @Override
                         protected void initChannel(SocketChannel ch) throws Exception {
                             log.info("客户端连接：{}:{}", ch.localAddress().getHostName(), ch.localAddress().getPort());
-                            ch.pipeline().addLast(new StringEncoder(Charset.forName("UTF-8")));
+//                            ch.pipeline().addLast(new StringEncoder(Charset.forName("UTF-8")));
+                            // 防止protobuf粘包半包问题；
+                            ch.pipeline().addLast(new ProtobufVarint32FrameDecoder());
+                            // 定义protobuf解码器
+                            ch.pipeline().addLast(new ProtobufDecoder(BaseRequestProto.RequestProtocol.getDefaultInstance()));
+                            // 防止protobuf粘包半包问题；
+                            ch.pipeline().addLast(new ProtobufVarint32LengthFieldPrepender());
+                            // 定义protobuf编码器
+                            ch.pipeline().addLast(new ProtobufEncoder());
                             // 客户端触发操作
                             ch.pipeline().addLast(new MyServerHandler());
-                            ch.pipeline().addLast(new ByteArrayEncoder());
+//                            ch.pipeline().addLast(new ByteArrayEncoder());
                         }
                     });
             // 服务器异步创建绑定

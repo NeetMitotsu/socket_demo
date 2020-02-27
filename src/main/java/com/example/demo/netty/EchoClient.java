@@ -1,6 +1,8 @@
 package com.example.demo.netty;
 
 import com.alibaba.fastjson.JSON;
+import com.example.demo.netty.message.BaseRequestProto;
+import com.example.demo.netty.message.BaseResponseProto;
 import com.example.demo.netty.message.RequestMessage;
 import com.google.common.base.Strings;
 import io.netty.bootstrap.Bootstrap;
@@ -12,6 +14,10 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.bytes.ByteArrayEncoder;
+import io.netty.handler.codec.protobuf.ProtobufDecoder;
+import io.netty.handler.codec.protobuf.ProtobufEncoder;
+import io.netty.handler.codec.protobuf.ProtobufVarint32FrameDecoder;
+import io.netty.handler.codec.protobuf.ProtobufVarint32LengthFieldPrepender;
 import io.netty.handler.codec.string.StringEncoder;
 import io.netty.handler.stream.ChunkedWriteHandler;
 import io.netty.util.CharsetUtil;
@@ -50,28 +56,16 @@ public class EchoClient {
                         @Override
                         protected void initChannel(SocketChannel ch) throws Exception {
                             System.out.println("正在连接中...");
-                            ch.pipeline().addLast(new StringEncoder(Charset.forName("GBK")));
+                            ch.pipeline().addLast(new ProtobufVarint32FrameDecoder());
+                            ch.pipeline().addLast(new ProtobufDecoder(BaseResponseProto.ResponseProtocol.getDefaultInstance()));
+                            ch.pipeline().addLast(new ProtobufVarint32LengthFieldPrepender());
+                            ch.pipeline().addLast(new ProtobufEncoder());
                             ch.pipeline().addLast(new EchoClientHandler(i));
-                            ch.pipeline().addLast(new ByteArrayEncoder());
-                            ch.pipeline().addLast(new ChunkedWriteHandler());
 
                         }
                     });
-            // System.out.println("服务端连接成功..");
-
             ChannelFuture cf = b.connect().sync(); // 异步连接服务器
             System.out.println("服务端连接成功..."); // 连接完成
-            Scanner scanner = new Scanner(System.in);
-            while (true) {
-                String s = scanner.nextLine();
-                if (!Strings.isNullOrEmpty(s)) {
-                    if ("exit".equals(s)) {
-                        cf.channel().closeFuture().sync(); // 异步等待关闭连接channel
-                        break;
-                    }
-                    cf.channel().writeAndFlush(s);
-                }
-            }
             cf.channel().closeFuture().sync(); // 异步等待关闭连接channel
             System.out.println("连接已关闭.."); // 关闭完成
 
@@ -81,43 +75,50 @@ public class EchoClient {
     }
 
     public static void main(String[] args) throws Exception {
-        for (int i = 0; i < 50; i++) {
-            int finalI = i;
-            new Thread(() ->  {
-                try {
-                    new EchoClient("127.0.0.1", 8081, finalI).start(); // 连接127.0.0.1/65535，并启动
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            }).start();
-        }
-
+//        for (int i = 0; i < 50; i++) {
+//            int finalI = i;
+//            new Thread(() ->  {
+//                try {
+        new EchoClient("127.0.0.1", 8081, 1).start(); // 连接127.0.0.1/65535，并启动
+//                } catch (Exception e) {
+//                    e.printStackTrace();
+//                }
+//            }).start();
     }
 
-    public class EchoClientHandler extends SimpleChannelInboundHandler<ByteBuf> {
-        private int i;
+}
 
-        public EchoClientHandler(int i) {
-            this.i = i;
+class EchoClientHandler extends SimpleChannelInboundHandler<BaseResponseProto.ResponseProtocol> {
+    private int i;
+
+    public EchoClientHandler(int i) {
+        this.i = i;
+    }
+
+    /**
+     * 向服务端发送数据
+     */
+    @Override
+    public void channelActive(ChannelHandlerContext ctx) throws Exception {
+        System.out.println("客户端与服务端通道-开启：" + ctx.channel().localAddress() + "channelActive");
+        BaseRequestProto.RequestProtocol requestProtocol = BaseRequestProto.RequestProtocol.newBuilder()
+                .setRequestId(100)
+                .setReqMsg("Hello, World")
+                .build();
+        ctx.writeAndFlush(requestProtocol);
+        for (int j = 0; j < 200; j++) {
+            BaseRequestProto.RequestProtocol requestProtocol2 = BaseRequestProto.RequestProtocol.newBuilder()
+                    .setRequestId(100)
+                    .setReqMsg("Hello, World2")
+                    .build();
+            ctx.writeAndFlush(requestProtocol2);
         }
-
-        /**
-         * 向服务端发送数据
-         */
-        @Override
-        public void channelActive(ChannelHandlerContext ctx) throws Exception {
-            System.out.println("客户端与服务端通道-开启：" + ctx.channel().localAddress() + "channelActive");
-            RequestMessage requestMessage = new RequestMessage();
-            requestMessage.setClazzId(1L);
-            requestMessage.setDeviceId(222L);
-            requestMessage.setTaskCode("2222");
-            requestMessage.setToken("token" + i);
-            String sendInfo = JSON.toJSONString(requestMessage);
-            System.out.println("客户端准备发送的数据包：" + sendInfo);
-            ctx.writeAndFlush(Unpooled.copiedBuffer(sendInfo, CharsetUtil.UTF_8)); // 必须有flush
+//            String sendInfo = JSON.toJSONString(requestMessage);
+//            System.out.println("客户端准备发送的数据包：" + sendInfo);
+//            ctx.writeAndFlush(Unpooled.copiedBuffer(sendInfo, CharsetUtil.UTF_8)); // 必须有flush
 //            Scanner scanner = new Scanner(System.in);
 //            while (true) {
-//                RequestMessage request = new RequestMessage();
+//                RequestMessage.proto request = new RequestMessage.proto();
 //                System.out.println("输入token");
 //                String s = scanner.nextLine();
 //                request.setToken(s);
@@ -129,32 +130,31 @@ public class EchoClient {
 //                ctx.writeAndFlush(Unpooled.copiedBuffer(sendRequest, CharsetUtil.UTF_8));
 //            }
 
-        }
+    }
 
-        /**
-         * channelInactive
-         * <p>
-         * channel 通道 Inactive 不活跃的
-         * <p>
-         * 当客户端主动断开服务端的链接后，这个通道就是不活跃的。也就是说客户端与服务端的关闭了通信通道并且不可以传输数据
-         */
-        @Override
-        public void channelInactive(ChannelHandlerContext ctx) throws Exception {
-            System.out.println("客户端与服务端通道-关闭：" + ctx.channel().localAddress() + "channelInactive");
-        }
+    /**
+     * channelInactive
+     * <p>
+     * channel 通道 Inactive 不活跃的
+     * <p>
+     * 当客户端主动断开服务端的链接后，这个通道就是不活跃的。也就是说客户端与服务端的关闭了通信通道并且不可以传输数据
+     */
+    @Override
+    public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+        System.out.println("客户端与服务端通道-关闭：" + ctx.channel().localAddress() + "channelInactive");
+    }
 
-        @Override
-        protected void channelRead0(ChannelHandlerContext ctx, ByteBuf msg) throws Exception {
-            System.out.println("读取客户端通道信息..");
-            ByteBuf buf = msg.readBytes(msg.readableBytes());
-            System.out.println(
-                    "客户端接收到的服务端信息:" + ByteBufUtil.hexDump(buf) + "; 数据包为:" + buf.toString(Charset.forName("utf-8")));
-        }
 
-        @Override
-        public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-            ctx.close();
-            System.out.println("异常退出:" + cause.getMessage());
-        }
+    @Override
+    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+        ctx.close();
+        System.out.println("异常退出:" + cause.getMessage());
+    }
+
+    @Override
+    protected void channelRead0(ChannelHandlerContext ctx, BaseResponseProto.ResponseProtocol msg) throws Exception {
+        System.out.println("读取客户端通道信息..");
+        System.out.println(
+                "客户端接收到的服务端信息:" + msg);
     }
 }
